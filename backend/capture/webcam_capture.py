@@ -21,6 +21,8 @@ import os
 import time
 import sys
 
+from backend.capture.sequence_buffer import SequenceBuffer
+
 
 # ─────────────────────────── Constants ───────────────────────────
 
@@ -329,7 +331,8 @@ def main():
         hands, mp_drawing, mp_hands = initialize_hands()
 
         is_recording = False
-        frames_data = []
+        # Use SequenceBuffer instead of a raw list to store captured frames
+        buffer = SequenceBuffer()
 
         while True:
             ret, frame = cap.read()
@@ -355,10 +358,11 @@ def main():
                         "hand": hand_data["hand"],
                         "landmarks": hand_data["landmarks"],
                     }
-                    frames_data.append(frame_record)
+                    # Add each frame dict into the SequenceBuffer
+                    buffer.add_frame(frame_record)
 
             # Draw HUD overlay
-            draw_hud(frame, is_recording, len(frames_data))
+            draw_hud(frame, is_recording, len(buffer))
 
             # Show preview
             cv2.imshow("SymbiotixEngine Capture", frame)
@@ -368,19 +372,22 @@ def main():
 
             if key == ord("r") and not is_recording:
                 is_recording = True
-                frames_data = []
+                buffer.clear()  # Ensure the buffer is empty before a new recording
                 print("[INFO] Recording started — perform your gesture now.")
 
             elif key == ord("s") and is_recording:
                 is_recording = False
-                print(f"[INFO] Recording stopped — {len(frames_data)} frames captured.")
+                print(f"[INFO] Recording stopped — {len(buffer)} frames captured.")
 
                 metadata = get_recording_metadata()
                 if metadata:
-                    save_recording(frames_data, metadata)
+                    # Retrieve the full sequence and pass it to the save function
+                    save_recording(buffer.get_sequence(), metadata)
                 else:
                     print("[INFO] Recording discarded.")
-                frames_data = []
+
+                # Always clear the buffer after stopping, whether saved or not
+                buffer.clear()
 
             elif key == ord("q"):
                 print("[INFO] Quitting...")
