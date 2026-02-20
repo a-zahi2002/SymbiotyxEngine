@@ -21,6 +21,15 @@ import os
 import time
 import sys
 
+# ─────────────────────────── Path Configuration ───────────────────────────
+
+# Add project root to sys.path to allow importing 'backend' when run as a script
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from backend.capture.sequence_buffer import SequenceBuffer
 
 
@@ -33,10 +42,6 @@ MIN_DETECTION_CONFIDENCE = 0.7
 MIN_TRACKING_CONFIDENCE = 0.7
 MAX_NUM_HANDS = 2
 
-# Resolve data output path relative to project root
-# Assumes script is run from project root or via `backend/capture/webcam_capture.py`
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 DATA_RAW_DIR = os.path.join(PROJECT_ROOT, "data", "raw")
 
 VALID_HANDS = ("left", "right", "both")
