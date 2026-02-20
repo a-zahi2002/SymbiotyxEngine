@@ -1,0 +1,94 @@
+# =====================
+# Python
+# =====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+*.virtualenv
+venv/
+ENV/
+env/
+.env
+.venv
+*.ipynb_checkpoints
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+*.log
+
+# =====================
+# Unity
+# =====================
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+/[Aa]ssets/Plugins/Editor/JetBrains*
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+*.unitypackage
+*.apk
+*.aab
+crashlytics-build.properties
+/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+/[Aa]ssets/[Ss]tream[Ii]ng[Aa]ssets/aa.meta
+/[Aa]ssets/[Ss]tream[Ii]ng[Aa]ssets/aa/*
+
+# Unity meta files (keep tracked, but ignore OS-generated)
+# *.meta  # Uncomment ONLY if you do NOT want to track meta files
+
+# =====================
+# VSCode
+# =====================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+.history/
+
+# =====================
+# OS Generated
+# =====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# =====================
+# IDE / Editor
+# =====================
+*.swp
+*.swo
+*~
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.csproj.user
