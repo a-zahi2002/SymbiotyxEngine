@@ -4,3 +4,7 @@
 mediapipe==0.10.9  # Pin to stable version (0.10.32 causes import issues on some systems)
 numpy<2.0.0        # MediaPipe requires numpy 1.x
 protobuf<4.0.0     # MediaPipe safest with protobuf 3.x
+
+# WebSocket server (AetherUI bridge)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0

@@ -41,7 +41,7 @@ htmlcov/
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
 MemoryCaptures/
-/[Aa]ssets/Plugins/Editor/JetBrains*
+[Aa]ssets/Plugins/Editor/JetBrains*
 *.pidb.meta
 *.pdb.meta
 *.mdb.meta
@@ -50,9 +50,9 @@ sysinfo.txt
 *.apk
 *.aab
 crashlytics-build.properties
-/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
-/[Aa]ssets/[Ss]tream[Ii]ng[Aa]ssets/aa.meta
-/[Aa]ssets/[Ss]tream[Ii]ng[Aa]ssets/aa/*
+[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+[Aa]ssets/[Ss]tream[Ii]ng[Aa]ssets/aa.meta
+[Aa]ssets/[Ss]tream[Ii]ng[Aa]ssets/aa/*
 
 # Unity meta files (keep tracked, but ignore OS-generated)
 # *.meta  # Uncomment ONLY if you do NOT want to track meta files
@@ -87,8 +87,14 @@ desktop.ini
 *.swo
 *~
 .idea/
+.vs/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+*.slnx
+*.csproj
 *.csproj.user
+*.unityproj
+*.sqlproj
+*.sqlproj.user
