@@ -28,6 +28,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
+import sys
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from backend.capture.sequence_buffer import SequenceBuffer
+
 # ─────────────────────────────────────────────────────────────
 #  Connection Manager
 #  Tracks all active Unity WebSocket clients and provides
@@ -93,47 +103,119 @@ manager = ConnectionManager()
 
 
 # ─────────────────────────────────────────────────────────────
-#  Test-Mode Background Task
-#  Sends a "zoom_in" command every 2 seconds so Unity can be
-#  tested without needing the full gesture pipeline running.
+#  Real Inference Model Integration
 # ─────────────────────────────────────────────────────────────
 
-# Set this to False (or remove the task) when using real gesture data.
-ENABLE_TEST_LOOP: bool = True
+# Change this to False if you don't have a webcam or want to disable real inference
+ENABLE_INFERENCE_LOOP: bool = True
 
-async def test_command_loop() -> None:
-    """
-    Background coroutine that broadcasts a test gesture command
-    every 2 seconds to all connected Unity clients.
+async def send_gesture_command(command: str, intensity: float) -> None:
+    """Broadcasts a recognized gesture and its computed intensity to Unity."""
+    payload = {
+        "command": command,
+        "intensity": round(intensity, 4)
+    }
+    await manager.broadcast(payload)
+    print(f"[INFERENCE] Broadcast → {json.dumps(payload)} ({manager.client_count} clients)")
 
-    The intensity oscillates between 0.5 and 2.5 using a simple
-    sine-like pattern so you can visually verify that OrbEffects
-    reacts to changing values.
-    """
-    import math
+async def inference_worker():
+    """Blocking worker that runs MediaPipe and model inference, yielding gestures."""
+    import cv2
+    import numpy as np
+    import mediapipe as mp
+    import torch
+    from backend.capture.webcam_capture import initialize_camera, initialize_hands, process_frame, extract_landmarks
+    from backend.models.train_gesture_model import process_sequence
+    from backend.models.gesture_classifier import load_model
 
-    print("[TEST] Test command loop started (sending every 2s)")
-    tick = 0
+    print("[INFERENCE] Loading Gesture Model...")
+    try:
+        model, class_map = load_model()
+        model.eval()
+    except Exception as e:
+        print(f"[WARN] Failed to load model: {e}. Falling back to default test mode.")
+        model = None
+
+    try:
+        cap = initialize_camera()
+        hands, _, _ = initialize_hands()
+    except Exception as e:
+        print(f"[ERROR] Could not initialize camera/hands for inference: {e}")
+        return
+
+    buffer = SequenceBuffer()
+    idle_frames = 0
+    max_idle_frames = 15  # End gesture sequence after 15 empty frames
+
     while True:
-        await asyncio.sleep(2.0)
-
-        if manager.client_count == 0:
-            # No clients connected; skip sending.
+        ret, frame = cap.read()
+        if not ret:
+            await asyncio.sleep(0.1)
             continue
+            
+        frame = cv2.flip(frame, 1)
+        results = process_frame(frame, hands)
+        hand_data_list = extract_landmarks(results)
+        
+        if len(hand_data_list) > 0:
+            # We add frame record
+            frame_record = {
+                "timestamp": round(time.time(), 4),
+                "hand": hand_data_list[0]["hand"],
+                "landmarks": hand_data_list[0]["landmarks"]
+            }
+            buffer.add_frame(frame_record)
+            idle_frames = 0
+        else:
+            idle_frames += 1
 
-        # Oscillate intensity: range [0.5 … 2.5]
-        intensity = 1.5 + math.sin(tick * 0.5)
-        tick += 1
+        # Check for gesture completion
+        if idle_frames > max_idle_frames and len(buffer) > 10:
+            # Process gesture sequence and run model
+            seq_data = buffer.get_sequence()
+            
+            # Simple Intensity calculation: Total movement of wrist across sequence
+            try:
+                start_lms = seq_data[0]["landmarks"]
+                end_lms = seq_data[-1]["landmarks"]
+                if len(start_lms) > 0 and len(end_lms) > 0:
+                    dx = end_lms[0]["x"] - start_lms[0]["x"]
+                    dy = end_lms[0]["y"] - start_lms[0]["y"]
+                    intensity = (dx**2 + dy**2)**0.5 * 10.0  # arbitrary scaling
+                else:
+                    intensity = 1.0
+            except:
+                intensity = 1.0
+                
+            intensity = max(0.5, min(intensity, 3.0)) # clamp between 0.5 and 3.0
 
-        payload = {
-            "command": "zoom_in",
-            "intensity": round(intensity, 4)
-        }
+            identified_gesture = "zoom_in"
+            
+            if model is not None:
+                try:
+                    features = process_sequence(seq_data)
+                    input_tensor = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+                    with torch.no_grad():
+                        preds = model(input_tensor)
+                        pred_class = torch.argmax(preds, dim=1).item()
+                        identified_gesture = class_map.get(pred_class, "unknown")
+                except Exception as e:
+                    print(f"[ERROR] Model inference failed: {e}")
 
-        await manager.broadcast(payload)
-        print(f"[TEST] Broadcast → {json.dumps(payload)}  "
-              f"({manager.client_count} client(s))")
+            buffer.clear()
+            
+            if identified_gesture != "unknown":
+                await send_gesture_command(identified_gesture, intensity)
 
+        elif idle_frames > max_idle_frames:
+            buffer.clear()
+            
+        await asyncio.sleep(0.01)
+
+async def real_inference_loop() -> None:
+    # Run the blocking camera loop in a threaded executor to not block asyncio Loop
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, lambda: asyncio.run(inference_worker()))
 
 # ─────────────────────────────────────────────────────────────
 #  FastAPI Application
@@ -146,8 +228,8 @@ async def lifespan(app: FastAPI):
     Starts the optional test command loop when the server boots.
     """
     task = None
-    if ENABLE_TEST_LOOP:
-        task = asyncio.create_task(test_command_loop())
+    if ENABLE_INFERENCE_LOOP:
+        task = asyncio.create_task(inference_worker())
     print("=" * 50)
     print("  SymbiotixEngine WebSocket Server")
     print("  Listening on  ws://localhost:8000/ws")
@@ -244,7 +326,7 @@ async def server_status():
     return {
         "status": "running",
         "connected_clients": manager.client_count,
-        "test_loop_enabled": ENABLE_TEST_LOOP,
+        "inference_loop_enabled": ENABLE_INFERENCE_LOOP,
         "server_time": time.strftime("%Y-%m-%d %H:%M:%S")
     }
 

@@ -148,13 +148,15 @@ def extract_landmarks(results):
         # the user's right hand when facing the camera).
         label = handedness.classification[0].label.lower()
 
+        wrist_lm = hand_landmarks.landmark[0]
+
         landmarks = []
         for idx, lm in enumerate(hand_landmarks.landmark):
             landmarks.append({
                 "id": idx,
-                "x": round(lm.x, 6),
-                "y": round(lm.y, 6),
-                "z": round(lm.z, 6),
+                "x": round(lm.x - wrist_lm.x, 6),
+                "y": round(lm.y - wrist_lm.y, 6),
+                "z": round(lm.z - wrist_lm.z, 6),
             })
 
         hands_data.append({
