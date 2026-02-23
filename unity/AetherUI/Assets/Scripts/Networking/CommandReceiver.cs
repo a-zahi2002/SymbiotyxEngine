@@ -39,6 +39,9 @@ public class CommandReceiver : MonoBehaviour
 
     void Awake()
     {
+        // Prevent Unity from freezing when the Python webcam window is focused
+        Application.runInBackground = true;
+        
         FindAndSetupOrb();
     }
 
@@ -108,18 +111,21 @@ public class CommandReceiver : MonoBehaviour
 
         websocket.OnOpen += () =>
         {
+            if (this == null) return;
             Debug.Log("[CommandReceiver] ✅ Connected to backend at " + backendUrl);
             isConnecting = false;
         };
 
         websocket.OnError += (e) =>
         {
+            if (this == null) return;
             Debug.LogError("[CommandReceiver] ❌ WebSocket Error: " + e);
             isConnecting = false;
         };
 
         websocket.OnClose += (e) =>
         {
+            if (this == null) return;
             Debug.LogWarning("[CommandReceiver] ⚠ Connection closed. Will attempt reconnect in " + reconnectDelay + "s");
             isConnecting = false;
             Invoke(nameof(TryReconnect), reconnectDelay);
@@ -127,6 +133,7 @@ public class CommandReceiver : MonoBehaviour
 
         websocket.OnMessage += (bytes) =>
         {
+            if (this == null) return;
             var message = System.Text.Encoding.UTF8.GetString(bytes);
             Debug.Log("[CommandReceiver] 📩 Received: " + message);
 
@@ -147,6 +154,7 @@ public class CommandReceiver : MonoBehaviour
         }
         catch (Exception ex)
         {
+            if (this == null) return;
             Debug.LogError("[CommandReceiver] ❌ Failed to connect: " + ex.Message);
             isConnecting = false;
             Invoke(nameof(TryReconnect), reconnectDelay);
@@ -177,7 +185,7 @@ public class CommandReceiver : MonoBehaviour
 
         if (orbEffects != null)
         {
-            orbEffects.SetIntensity(cmd.intensity);
+            orbEffects.HandleGesture(cmd.command, cmd.intensity);
         }
         else
         {
@@ -208,7 +216,7 @@ public class CommandReceiver : MonoBehaviour
     {
         if (orbEffects != null)
         {
-            orbEffects.SetIntensity(2.0f);
+            orbEffects.HandleGesture("zoom_in", 2.0f);
             Debug.Log("[CommandReceiver] Test zoom triggered with intensity 2.0");
         }
         else
