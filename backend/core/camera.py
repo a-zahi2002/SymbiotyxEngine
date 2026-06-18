@@ -22,7 +22,13 @@ class CameraManager:
             camera_index (int): The system index of the camera (default is 0).
         """
         self.camera_index = camera_index
-        self.cap = cv2.VideoCapture(self.camera_index)
+        import sys
+        if sys.platform == "win32":
+            self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
+            if not self.cap.isOpened():
+                self.cap = cv2.VideoCapture(self.camera_index)
+        else:
+            self.cap = cv2.VideoCapture(self.camera_index)
 
         if not self.cap.isOpened():
             print(f"[ERROR] Camera index {self.camera_index} could not be opened.")

@@ -145,7 +145,7 @@ public class SpellEffectsManager : MonoBehaviour
         TrailRenderer trail = fireball.AddComponent<TrailRenderer>();
         trail.startWidth = 0.5f * intensity;
         trail.endWidth = 0f;
-        trail.time = 0.4s;
+        trail.time = 0.4f;
         trail.material = CreateSpellMaterial(fireColor, true, true);
         
         // Gradient color for trail
@@ -232,7 +232,7 @@ public class SpellEffectsManager : MonoBehaviour
         TrailRenderer trail = slash.AddComponent<TrailRenderer>();
         trail.startWidth = 2.5f * intensity;
         trail.endWidth = 0f;
-        trail.time = 0.3s;
+        trail.time = 0.3f;
         trail.material = CreateSpellMaterial(slashColor, true, true);
 
         // Move forward rapidly and rotate around Z axis for a spin effect

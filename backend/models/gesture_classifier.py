@@ -51,7 +51,7 @@ def save_model(model: nn.Module, class_map: dict, filepath: str = None):
     torch.save(state, filepath)
     print(f"[INFO] Model saved to {filepath}")
 
-def load_model(filepath: str = None) -> (nn.Module, dict):
+def load_model(filepath: str = None) -> tuple[nn.Module, dict]:
     if filepath is None:
         filepath = os.path.join(SCRIPT_DIR, "gesture_model.pth")
         

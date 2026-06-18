@@ -1,0 +1,2 @@
+# Configuration for Pyrefly static type checker
+python-interpreter-path = ".venv/Scripts/python.exe"

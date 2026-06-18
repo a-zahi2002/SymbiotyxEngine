@@ -23,6 +23,7 @@ public class OrbEffects : MonoBehaviour
     public float depthRange = -6f;
 
     private SpellEffectsManager spellEffectsManager;
+    private OrbRotator orbRotator;
 
     [Header("VFX Components (Auto-created if missing)")]
     private Renderer[] orbRenderers;
@@ -53,6 +54,9 @@ public class OrbEffects : MonoBehaviour
         {
             spellEffectsManager = gameObject.AddComponent<SpellEffectsManager>();
         }
+
+        // Get OrbRotator (on same GameObject) to suppress idle spin during gestures
+        orbRotator = GetComponent<OrbRotator>();
 
         // 1) Setup Trail Renderer
         trail = GetComponent<TrailRenderer>();
@@ -143,6 +147,12 @@ public class OrbEffects : MonoBehaviour
         string command = cmd.command;
         float intensity = cmd.intensity;
         currentSpell = cmd.spell;
+
+        // Tell OrbRotator to pause idle spin (gesture is active)
+        if (orbRotator != null && command != "idle")
+        {
+            orbRotator.NotifyCommandReceived();
+        }
         
         // Ensure idle resets all transforms
         if (command == "idle")

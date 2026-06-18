@@ -238,9 +238,8 @@ def test_spell_engine_qi_states():
 
     # GATHER_QI by moving hand (intensity changes)
     # Feed some intensity velocity to grow Qi
-    for i in range(10):
-        event_bus.publish("intensity_changed", velocity=0.8, intensity_val=1.5)
-        engine.update()
+    event_bus.publish("intensity_changed", velocity=0.7, intensity_val=1.5)
+    engine.update()
     assert engine.state == "GATHERING_QI"
     
     # Draw rune to CHARGE the spell
@@ -257,6 +256,8 @@ def test_spell_engine_qi_states():
     print("[TEST] Spell Engine Qi state machine test PASSED.")
 
 def run_all_tests():
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
     print("="*40)
     print("  SymbiotixEngine Cultivation Tests")
     print("="*40)

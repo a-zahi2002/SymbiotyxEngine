@@ -1,0 +1,12 @@
+{
+  "pythonVersion": "3.12",
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": [
+    "backend"
+  ],
+  "ignore": [
+    "**/__pyrefly_virtual__"
+  ],
+  "typeCheckingMode": "off"
+}

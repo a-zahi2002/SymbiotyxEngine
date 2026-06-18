@@ -556,7 +556,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 339b838752d0dfe4ab421a1767e64b6b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OrbRotator
-  rotationSpeed: 50
+  rotationSpeed: 30
+  idleResumeDelay: 1.5
+  blendSpeed: 3
 --- !u!114 &1721642101
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -569,11 +571,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4bc23d53242c3a741b6b3e2a33b12966, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OrbEffects
-  zoomSpeed: 5
+  zoomSpeed: 8
   baseScale: 1
   scaleMultiplier: 0.5
-  lowIntensityColor: {r: 0, g: 0, b: 1, a: 1}
-  highIntensityColor: {r: 1, g: 0, b: 0, a: 1}
+  trackingSpeed: 12
+  horizontalRange: 12
+  verticalRange: 8
+  depthRange: -6
+  lowIntensityColor: {r: 0, g: 0.2, b: 1, a: 1}
+  highIntensityColor: {r: 1, g: 0.2, b: 0.4, a: 1}
   maxIntensityForColor: 3
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

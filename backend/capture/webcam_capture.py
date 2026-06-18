@@ -62,8 +62,13 @@ def initialize_camera(index=CAMERA_INDEX):
     Raises:
         RuntimeError: If the camera cannot be opened.
     """
-    print(f"[INFO] Opening camera {index}...")
-    cap = cv2.VideoCapture(index)
+    import sys
+    if sys.platform == "win32":
+        cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            cap = cv2.VideoCapture(index)
+    else:
+        cap = cv2.VideoCapture(index)
 
     if not cap.isOpened():
         raise RuntimeError(
