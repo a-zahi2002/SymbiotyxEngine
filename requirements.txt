@@ -1,10 +1,19 @@
 # SymbiotixEngine Python Dependencies
 # NOTE: Use Python 3.10, 3.11, or 3.12. Python 3.13+ is NOT supported yet.
 
-mediapipe==0.10.9  # Pin to stable version (0.10.32 causes import issues on some systems)
-numpy<2.0.0        # MediaPipe requires numpy 1.x
-protobuf<4.0.0     # MediaPipe safest with protobuf 3.x
-
-# WebSocket server (AetherUI bridge)
+mediapipe>=0.10.13
+numpy<2.0.0
+protobuf<4.0.0
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
+opencv-python
+scipy
+torch
+scikit-learn
+websockets
+python-multipart
+pydantic
+arcade
+moderngl
+pygame
+

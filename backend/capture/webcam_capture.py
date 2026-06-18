@@ -162,6 +162,11 @@ def extract_landmarks(results):
         hands_data.append({
             "hand": label,
             "landmarks": landmarks,
+            "wrist_absolute": {
+                "x": round(wrist_lm.x, 6),
+                "y": round(wrist_lm.y, 6),
+                "z": round(wrist_lm.z, 6)
+            }
         })
 
     return hands_data

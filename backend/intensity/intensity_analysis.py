@@ -112,3 +112,44 @@ if __name__ == "__main__":
     
     # Expected: (1.0 + 2.0) / 2 = 1.5
     print("\nTest finished.")
+
+def map_intensity_to_effects(intensity: float, spell_type: str) -> dict:
+    """
+    Maps a raw intensity float to spell-specific parameters (power, particle count,
+    animation speed, and explosion radius).
+
+    Args:
+        intensity (float): Raw movement intensity/velocity multiplier.
+        spell_type (str): The name of the spell.
+
+    Returns:
+        dict: Spell effect parameters.
+    """
+    # Clamp intensity for safety
+    clamped = max(0.5, min(intensity, 5.0))
+    
+    # Base mapping
+    power = clamped * 1.5
+    particles = int(clamped * 30)
+    anim_speed = 0.5 + (clamped * 0.5)
+    radius = 1.0 + (clamped * 0.8)
+
+    # Spell-specific customizations
+    if spell_type == "FIREBALL":
+        particles = int(clamped * 50)  # Fireballs have lots of sparks
+    elif spell_type == "SHIELD":
+        radius = 1.5 + (clamped * 0.5)  # Shields grow wider
+        particles = int(clamped * 20)
+    elif spell_type == "LIGHTNING":
+        anim_speed = 1.0 + (clamped * 1.0)  # Lightning is extremely fast
+    elif spell_type == "DRAGON_SUMMON":
+        power = clamped * 2.5
+        radius = 2.0 + (clamped * 1.0)  # Giant dragons
+
+    return {
+        "spell_power": round(power, 2),
+        "particle_count": particles,
+        "animation_speed": round(anim_speed, 2),
+        "explosion_radius": round(radius, 2)
+    }
+

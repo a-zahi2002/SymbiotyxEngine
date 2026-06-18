@@ -151,8 +151,8 @@ def run_fallback_loop(loop):
         traceback.print_exc()
 
 def inference_worker_sync(loop):
-    """Blocking worker that runs MediaPipe and model inference, yielding gestures in a daemon thread."""
-    print("[INFO] Starting inference_worker_sync thread...")
+    """Blocking worker that runs MediaPipe, filters, mudras, combos, runes, and spell engines, yielding gestures."""
+    print("[INFO] Starting cultivation-enhanced inference_worker_sync thread...")
     try:
         import sys
         import cv2
@@ -160,20 +160,34 @@ def inference_worker_sync(loop):
         import mediapipe as mp
         import torch
         import traceback
+        import time
         
         from backend.capture.webcam_capture import initialize_hands, process_frame, extract_landmarks, draw_landmarks, draw_hud
         from backend.models.train_gesture_model import process_sequence
         from backend.models.gesture_classifier import load_model
-        
         from backend.capture.sequence_buffer import SequenceBuffer
+        
+        # New Target Architecture Imports
+        from backend.filters.one_euro_filter import HandLandmarksFilter
+        from backend.core.gesture_engine import GestureEngine
+        from backend.gestures.dynamic_gesture_engine import HybridDynamicGestureEngine
+        from backend.runes.dollar_one_recognizer import DollarOneRecognizer
+        from backend.dual_hand.dual_hand_engine import DualHandEngine
+        from backend.combos.combo_engine import ComboEngine
+        from backend.spells.spell_engine import SpellEngine
+        from backend.audio.audio_manager import AudioManager
+        from backend.effects.effect_manager import effect_manager
+        from backend.events.event_bus import event_bus
+        import backend.intensity.intensity_analysis as intensity_analysis
+        
     except Exception as e:
-        print(f"[ERROR] Failed to import inference dependencies: {e}")
+        print(f"[ERROR] Failed to import cultivation inference dependencies: {e}")
+        traceback.print_exc()
         print("[INFO] Switching to fallback test mode due to missing dependencies.")
         run_fallback_loop(loop)
         return
 
     print("Opening webcam...")
-    
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("[WARN] Camera index 0 failed, trying index 1...")
@@ -185,15 +199,49 @@ def inference_worker_sync(loop):
         return
 
     print("Webcam opened successfully")
+
+    # Start audio and effect visualizers
+    audio_mgr = AudioManager()
+    effect_manager.run_window()
+
+    # Instantiate cultivation components
+    static_engine = GestureEngine()
+    dynamic_engine = HybridDynamicGestureEngine()
+    rune_recognizer = DollarOneRecognizer()
+    dual_hand_engine = DualHandEngine()
+    combo_engine = ComboEngine()
+    spell_engine = SpellEngine()
+
+    hand_filters = {
+        "left": HandLandmarksFilter(),
+        "right": HandLandmarksFilter()
+    }
+
+    # Tracking states
+    drawing_trajectory = []
+    is_drawing = False
+    active_drawing_hand = None
     
-    print("[INFERENCE] Loading Gesture Model...")
-    try:
-        model, class_map = load_model()
-        model.eval()
-    except Exception as e:
-        print(f"[WARN] Failed to load model: {e}. Webcam will stay open, but predictions will be simulated.")
-        model = None
-        class_map = {}
+    # Event Bus subscription to broadcast spell casts to Unity
+    def on_spell_cast(payload):
+        unity_payload = {
+            "command": payload.get("command", "idle"),
+            "intensity": payload.get("intensity", 0.0),
+            "gesture": payload.get("gesture", "UNKNOWN"),
+            "dynamic_gesture": payload.get("dynamic_gesture", "none"),
+            "rune": payload.get("rune", "NONE"),
+            "spell": payload.get("spell", "NONE"),
+            "state": payload.get("state", "CASTING"),
+            "velocity": payload.get("velocity", 0.0),
+            "confidence": payload.get("confidence", 0.95)
+        }
+        asyncio.run_coroutine_threadsafe(
+            manager.broadcast(unity_payload),
+            loop
+        )
+        print(f"[WS] Broadcast spell cast → {json.dumps(unity_payload)}")
+
+    event_bus.subscribe("spell_cast", on_spell_cast)
 
     try:
         hands, mp_drawing, mp_hands = initialize_hands()
@@ -222,20 +270,36 @@ def inference_worker_sync(loop):
             frame = cv2.flip(frame, 1)
             results = process_frame(frame, hands)
             draw_landmarks(frame, results, mp_drawing, mp_hands)
-            draw_hud(frame, True, total_frames)
             
-            cv2.imshow("SymbiotixEngine Inference", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                print("[INFO] Quitting inference loop.")
-                break
-                
+            # Periodically tick the spell engine (cooldown decays)
+            spell_engine.update()
+            
             hand_data_list = extract_landmarks(results)
+            timestamp = time.time()
             
             if len(hand_data_list) > 0:
+                # 1. Filter landmarks to remove jitter
+                for hd in hand_data_list:
+                    h_label = hd["hand"]
+                    hd["landmarks"] = hand_filters[h_label].filter(hd["landmarks"], timestamp)
+                
+                primary_hand = hand_data_list[0]
+                h_label = primary_hand["hand"]
+                
+                # 2. Analyze static mudras
+                gesture_res = static_engine.analyze(primary_hand["landmarks"])
+                primary_gesture = gesture_res["gesture"]
+                primary_confidence = gesture_res["confidence"]
+                
+                # Publish mudra event
+                event_bus.publish("gesture_detected", hand=h_label, gesture=primary_gesture, confidence=primary_confidence)
+                
+                # 3. Add to Sequence Buffer
                 frame_record = {
-                    "timestamp": round(time.time(), 4),
-                    "hand": hand_data_list[0]["hand"],
-                    "landmarks": hand_data_list[0]["landmarks"]
+                    "timestamp": round(timestamp, 4),
+                    "hand": h_label,
+                    "landmarks": primary_hand["landmarks"],
+                    "wrist_absolute": primary_hand["wrist_absolute"]
                 }
                 buffer.add_frame(frame_record)
                 
@@ -244,92 +308,131 @@ def inference_worker_sync(loop):
                 idle_frames = 0
                 total_frames += 1
 
-                # Stream live intensity back to Unity so the orb reacts in real-time
-                if total_frames % 2 == 0:
-                    lms = hand_data_list[0]["landmarks"]
-                    xs = [lm["x"] for lm in lms]
-                    ys = [lm["y"] for lm in lms]
-                    hand_scale = ((max(xs) - min(xs))**2 + (max(ys) - min(ys))**2)**0.5
-                    live_intensity = max(0.5, min(hand_scale * 8.0, 3.0))
+                # Calculate frame velocity
+                velocity = 0.0
+                if len(buffer) > 1:
+                    prev_frame = buffer.get_sequence()[-2]
+                    velocity = intensity_analysis.compute_frame_velocity(prev_frame, frame_record)
+                
+                live_intensity = max(0.5, min(velocity * 8.0, 5.0))
+                event_bus.publish("intensity_changed", velocity=velocity, intensity_val=live_intensity)
+
+                # 4. Handle Rune Drawing
+                if primary_gesture in ("POINTING", "PINCH"):
+                    if not is_drawing:
+                        is_drawing = True
+                        active_drawing_hand = h_label
+                        drawing_trajectory = []
+                        print(f"[RUNE] Started drawing seal with {h_label} hand...")
                     
+                    # Extract absolute index finger tip
+                    idx_lm = primary_hand["landmarks"][8]
+                    abs_x = idx_lm["x"] + primary_hand["wrist_absolute"]["x"]
+                    abs_y = idx_lm["y"] + primary_hand["wrist_absolute"]["y"]
+                    drawing_trajectory.append((abs_x, abs_y))
+                else:
+                    if is_drawing:
+                        is_drawing = False
+                        if len(drawing_trajectory) >= 12:
+                            rune_res = rune_recognizer.recognize(drawing_trajectory)
+                            if rune_res["confidence"] > 0.75:
+                                event_bus.publish("rune_detected", rune=rune_res["rune"], confidence=rune_res["confidence"])
+                        drawing_trajectory = []
+
+                # 5. Dual Hand Mudras
+                if len(hand_data_list) >= 2:
+                    left_hd = next((h for h in hand_data_list if h["hand"] == "left"), None)
+                    right_hd = next((h for h in hand_data_list if h["hand"] == "right"), None)
+                    if left_hd and right_hd:
+                        left_res = static_engine.analyze(left_hd["landmarks"])
+                        right_res = static_engine.analyze(right_hd["landmarks"])
+                        dual_spell = dual_hand_engine.analyze(left_res["gesture"], right_res["gesture"])
+                        if dual_spell:
+                            event_bus.publish("dual_hand_detected", spell_name=dual_spell)
+
+                # 6. Combo sequences over time
+                combo_spell = combo_engine.update(primary_gesture)
+                if combo_spell:
+                    event_bus.publish("combo_detected", spell_name=combo_spell)
+
+                # 7. Draw HUD and traces on OpenCV frame
+                # Draw drawing path (runes) if active
+                if is_drawing and len(drawing_trajectory) > 1:
+                    for i in range(1, len(drawing_trajectory)):
+                        p1 = (int(drawing_trajectory[i-1][0] * frame.shape[1]), int(drawing_trajectory[i-1][1] * frame.shape[0]))
+                        p2 = (int(drawing_trajectory[i][0] * frame.shape[1]), int(drawing_trajectory[i][1] * frame.shape[0]))
+                        cv2.line(frame, p1, p2, (0, 215, 255), 3) # golden draw line
+
+                # Stream live tracking to Unity
+                if total_frames % 2 == 0:
+                    live_payload = {
+                        "command": "tracking",
+                        "intensity": round(live_intensity, 4),
+                        "gesture": primary_gesture,
+                        "dynamic_gesture": "none",
+                        "rune": "NONE",
+                        "spell": "NONE",
+                        "state": spell_engine.state,
+                        "velocity": round(velocity, 4),
+                        "confidence": primary_confidence
+                    }
                     asyncio.run_coroutine_threadsafe(
-                        send_gesture_command("tracking", live_intensity),
+                        manager.broadcast(live_payload),
                         loop
                     )
+                    
+                # HUD text on frame
+                hud_text = f"Mudra: {primary_gesture} | Qi State: {spell_engine.state}"
+                cv2.putText(frame, hud_text, (20, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(frame, f"Qi Energy: {spell_engine.qi_level:.1f}", (20, frame.shape[0] - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             else:
                 idle_frames += 1
+                if is_drawing:
+                    is_drawing = False
+                    if len(drawing_trajectory) >= 12:
+                        rune_res = rune_recognizer.recognize(drawing_trajectory)
+                        if rune_res["confidence"] > 0.75:
+                            event_bus.publish("rune_detected", rune=rune_res["rune"], confidence=rune_res["confidence"])
+                    drawing_trajectory = []
 
-            # Check for gesture completion
+            # Check for dynamic gesture completion (swipes, etc.)
             if idle_frames > max_idle_frames and len(buffer) > 10:
-                print("Sequence complete")
+                print("Sequence complete - running dynamic classification...")
                 seq_data = buffer.get_sequence()
+                motion_res = dynamic_engine.recognize(seq_data)
                 
-                # Simple Intensity calculation
-                try:
-                    start_lms = seq_data[0]["landmarks"]
-                    end_lms = seq_data[-1]["landmarks"]
-                    if len(start_lms) > 0 and len(end_lms) > 0:
-                        dx = end_lms[0]["x"] - start_lms[0]["x"]
-                        dy = end_lms[0]["y"] - start_lms[0]["y"]
-                        intensity = (dx**2 + dy**2)**0.5 * 10.0
-                    else:
-                        intensity = 1.0
-                except:
-                    intensity = 1.0
-                    
-                intensity = max(0.5, min(intensity, 3.0))
-
-                identified_gesture = "unknown"
-                confidence = 0.0
-                
-                try:
-                    if model is not None:
-                        features = process_sequence(seq_data)
-                        input_tensor = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
-                        with torch.no_grad():
-                            preds = model(input_tensor)
-                            pred_class = torch.argmax(preds, dim=1).item()
-                            identified_gesture = class_map.get(pred_class, "unknown")
-                            confidence = torch.max(torch.nn.functional.softmax(preds, dim=1)).item()
-                    else:
-                        import random
-                        gestures = ["zoom_in", "zoom_out", "swipe_left", "swipe_right", "rotate_cw", "rotate_ccw"]
-                        identified_gesture = random.choice(gestures)
-                        confidence = 0.99
-                except Exception as e:
-                    print(f"[ERROR] Model inference failed: {e}")
-                    traceback.print_exc()
-
-                print(f"Prediction: {identified_gesture} (confidence {confidence:.2f})")
-
-                if identified_gesture != "unknown":
-                    print("Broadcasting final gesture command...")
-                    asyncio.run_coroutine_threadsafe(
-                        send_gesture_command(identified_gesture, 3.0),
-                        loop
-                    )
-                    
-                    # Add a tiny delay and send the reset command
-                    # so the orb pops large for the gesture, then drops to 0 gracefully
-                    import threading
-                    def send_reset():
-                        time.sleep(1.0)
-                        asyncio.run_coroutine_threadsafe(
-                            send_gesture_command("idle", 0.0),
-                            loop
-                        )
-                    threading.Thread(target=send_reset, daemon=True).start()
-
+                if motion_res["motion"] != "unknown":
+                    print(f"Prediction: {motion_res['motion']} (confidence {motion_res['confidence']:.2f})")
+                    event_bus.publish("dynamic_gesture_detected", motion=motion_res["motion"], confidence=motion_res["confidence"])
                 buffer.clear()
+                
             elif idle_frames > max_idle_frames:
-                # Still idle, but buffer is clear. Send an idle signal if it just lost track
                 if idle_frames == max_idle_frames + 1:
                     print("Hand lost, sending idle reset...")
+                    event_bus.publish("spell_idle", spell=None, state="IDLE", qi=0.0)
+                    spell_engine.change_state("IDLE")
+                    
+                    idle_payload = {
+                        "command": "idle",
+                        "intensity": 0.0,
+                        "gesture": "UNKNOWN",
+                        "dynamic_gesture": "unknown",
+                        "rune": "NONE",
+                        "spell": "NONE",
+                        "state": "IDLE",
+                        "velocity": 0.0,
+                        "confidence": 0.0
+                    }
                     asyncio.run_coroutine_threadsafe(
-                        send_gesture_command("idle", 0.0),
+                        manager.broadcast(idle_payload),
                         loop
                     )
                 buffer.clear()
+                
+            cv2.imshow("SymbiotixEngine Inference", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                print("[INFO] Quitting inference loop.")
+                break
                 
             time.sleep(0.01)
     except Exception as e:
@@ -337,8 +440,10 @@ def inference_worker_sync(loop):
         traceback.print_exc()
     finally:
         print("[INFO] Clean inference loop exit. Releasing resources...")
-        if hands: hands.close()
-        if cap and cap.isOpened(): cap.release()
+        if 'hands' in locals() and hands:
+            hands.close()
+        if 'cap' in locals() and cap and cap.isOpened():
+            cap.release()
         cv2.destroyAllWindows()
 
 
