@@ -10,6 +10,13 @@ public class GestureCommand
 {
     public string command;
     public float intensity;
+    public string gesture;
+    public string dynamic_gesture;
+    public string rune;
+    public string spell;
+    public string state;
+    public float velocity;
+    public float confidence;
 }
 
 /// <summary>
@@ -181,15 +188,15 @@ public class CommandReceiver : MonoBehaviour
             return;
         }
 
-        Debug.Log($"[CommandReceiver] Command: '{cmd.command}' | Intensity: {cmd.intensity:F4}");
+        Debug.Log($"[CommandReceiver] Command: '{cmd.command}' | Intensity: {cmd.intensity:F4} | Spell: '{cmd.spell}' | State: '{cmd.state}'");
 
         if (orbEffects != null)
         {
-            orbEffects.HandleGesture(cmd.command, cmd.intensity);
+            orbEffects.HandleGesture(cmd);
         }
         else
         {
-            Debug.LogError("[CommandReceiver] OrbEffects is null — cannot apply zoom!");
+            Debug.LogError("[CommandReceiver] OrbEffects is null — cannot apply gesture effects!");
         }
     }
 

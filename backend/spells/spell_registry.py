@@ -76,5 +76,13 @@ SPELLS = {
         "cooldown": 4.5,
         "qi_requirement": 35.0,
         "unity_command": "swipe_up"
+    },
+    "BARRIER": {
+        "name": "Barrier",
+        "description": "Erect a solid defense barrier using both hands",
+        "cooldown": 3.0,
+        "qi_requirement": 20.0,
+        "unity_command": "barrier"
     }
 }
+

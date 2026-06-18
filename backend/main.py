@@ -1,6 +1,10 @@
 """
 main.py
 -------
+🚨 WARNING: This file is a legacy dataset capture prototype and NOT the live entry point
+of the SymbiotixEngine pipeline.
+To run the live server, use: python -m backend.server.websocket_server
+
 A working recording prototype for SymbiotixEngine.
 Integrates camera access, hand tracking, gesture analysis, 
 velocity calculation, and sequence buffering.

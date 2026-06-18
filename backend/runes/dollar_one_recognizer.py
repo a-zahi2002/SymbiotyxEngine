@@ -228,16 +228,46 @@ class DollarOneRecognizer:
         translated = self._translate_to(scaled, (0, 0))
         return translated
 
-    def _distance_at_best_angle(self, points: list[tuple[float, float]], template: list[tuple[float, float]]) -> float:
+    def _distance_at_angle(self, points: list[tuple[float, float]], template: list[tuple[float, float]], angle: float) -> float:
         """
-        Calculates minimum matching distance at best rotated angle.
+        Calculates path distance after rotating candidate points by a specific angle.
         """
-        # To simplify, we calculate the distance at 0 rotation, as prepare_path
-        # already rotated both candidate and template to their 0 angles.
+        rotated_pts = self._rotate_by(points, angle)
         d = 0.0
-        for p_cand, p_temp in zip(points, template):
+        for p_cand, p_temp in zip(rotated_pts, template):
             d += math.hypot(p_cand[0] - p_temp[0], p_cand[1] - p_temp[1])
         return d / self.num_points
+
+    def _distance_at_best_angle(self, points: list[tuple[float, float]], template: list[tuple[float, float]]) -> float:
+        """
+        Calculates minimum matching distance at best rotated angle using Golden Section Search.
+        """
+        a = -45.0 * math.pi / 180.0
+        b = 45.0 * math.pi / 180.0
+        threshold = 2.0 * math.pi / 180.0
+        phi = 0.5 * (math.sqrt(5.0) - 1.0)
+        
+        x1 = b - phi * (b - a)
+        x2 = a + phi * (b - a)
+        
+        f1 = self._distance_at_angle(points, template, x1)
+        f2 = self._distance_at_angle(points, template, x2)
+        
+        while abs(b - a) > threshold:
+            if f1 < f2:
+                b = x2
+                x2 = x1
+                f2 = f1
+                x1 = b - phi * (b - a)
+                f1 = self._distance_at_angle(points, template, x1)
+            else:
+                a = x1
+                x1 = x2
+                f1 = f2
+                x2 = a + phi * (b - a)
+                f2 = self._distance_at_angle(points, template, x2)
+                
+        return min(f1, f2)
 
     def recognize(self, points: list[tuple[float, float]]) -> dict:
         """

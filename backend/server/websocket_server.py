@@ -325,11 +325,12 @@ def inference_worker_sync(loop):
                         drawing_trajectory = []
                         print(f"[RUNE] Started drawing seal with {h_label} hand...")
                     
-                    # Extract absolute index finger tip
-                    idx_lm = primary_hand["landmarks"][8]
-                    abs_x = idx_lm["x"] + primary_hand["wrist_absolute"]["x"]
-                    abs_y = idx_lm["y"] + primary_hand["wrist_absolute"]["y"]
-                    drawing_trajectory.append((abs_x, abs_y))
+                    # Extract absolute index finger tip (landmark 8) robustly by ID
+                    idx_lm = next((lm for lm in primary_hand["landmarks"] if lm["id"] == 8), None)
+                    if idx_lm is not None:
+                        abs_x = idx_lm["x"] + primary_hand["wrist_absolute"]["x"]
+                        abs_y = idx_lm["y"] + primary_hand["wrist_absolute"]["y"]
+                        drawing_trajectory.append((abs_x, abs_y))
                 else:
                     if is_drawing:
                         is_drawing = False

@@ -33,6 +33,8 @@ class SpellEngine:
         self.current_velocity = 0.0
         self.last_update_time = time.time()
         self.state_entered_time = time.time()
+        self.last_gesture = "UNKNOWN"
+        self.last_dynamic_gesture = "none"
 
         # Subscribe to event bus signals
         event_bus.subscribe("gesture_detected", self.on_gesture_detected)
@@ -70,7 +72,7 @@ class SpellEngine:
 
         # 1. Handle Cooldown state
         if self.state == STATE_COOLDOWN:
-            if self.active_spell:
+            if self.active_spell and self.active_spell in SPELLS:
                 cooldown_dur = SPELLS[self.active_spell]["cooldown"]
                 elapsed = now - self.state_entered_time
                 if elapsed >= cooldown_dur:
@@ -81,6 +83,9 @@ class SpellEngine:
                     self.qi_level = 0.0
                     self.change_state(STATE_IDLE)
             else:
+                self.active_spell = None
+                self.active_rune = None
+                self.qi_level = 0.0
                 self.change_state(STATE_IDLE)
 
         # 2. Decay Qi level slowly if idle or in preparing
@@ -123,7 +128,11 @@ class SpellEngine:
             "intensity": round(cast_power, 4),
             "rune": self.active_rune or "NONE",
             "state": STATE_CASTING,
-            "effect_details": effect_data
+            "effect_details": effect_data,
+            "gesture": getattr(self, "last_gesture", "UNKNOWN"),
+            "dynamic_gesture": getattr(self, "last_dynamic_gesture", "none"),
+            "velocity": round(self.current_velocity, 4),
+            "confidence": 0.95
         }
         
         print(f"\n⚡ [SpellEngine] CASTING {self.active_spell}! Power: {cast_power:.2f} | Rune: {payload['rune']}")
@@ -142,6 +151,8 @@ class SpellEngine:
         """
         if self.state == STATE_COOLDOWN:
             return
+
+        self.last_gesture = gesture
 
         # 1. Idle -> Preparing transitions based on static mudras
         if self.state == STATE_IDLE:
@@ -170,6 +181,8 @@ class SpellEngine:
         """
         if self.state == STATE_COOLDOWN:
             return
+
+        self.last_dynamic_gesture = motion
 
         # Map dynamic gestures directly to spells if idle
         if self.state == STATE_IDLE:
@@ -268,6 +281,9 @@ class SpellEngine:
         """
         self.current_velocity = velocity
         self.current_intensity = intensity_val
+
+        if not self.active_spell or self.active_spell not in SPELLS:
+            return
 
         # If preparing, hand motion gathers Qi
         if self.state == STATE_PREPARING:

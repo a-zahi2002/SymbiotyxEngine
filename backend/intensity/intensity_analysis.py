@@ -79,40 +79,6 @@ def compute_average_velocity(sequence: list[dict]) -> float:
 
     return total_velocity / count if count > 0 else 0.0
 
-if __name__ == "__main__":
-    print("=== Intensity Analysis Test ===\n")
-
-    # Mock data: A simple movement along the X-axis
-    # Frame 1: at t=0.0, wrist at (0, 0, 0)
-    frame1 = {
-        "timestamp": 0.0,
-        "hand": "right",
-        "landmarks": [{"id": 0, "x": 0.0, "y": 0.0, "z": 0.0}]
-    }
-    
-    # Frame 2: at t=0.1, wrist at (0.1, 0, 0) -> Velocity = 0.1 / 0.1 = 1.0
-    frame2 = {
-        "timestamp": 0.1,
-        "hand": "right",
-        "landmarks": [{"id": 0, "x": 0.1, "y": 0.0, "z": 0.0}]
-    }
-
-    # Frame 3: at t=0.2, wrist at (0.3, 0, 0) -> Velocity = 0.2 / 0.1 = 2.0
-    frame3 = {
-        "timestamp": 0.2,
-        "hand": "right",
-        "landmarks": [{"id": 0, "x": 0.3, "y": 0.0, "z": 0.0}]
-    }
-
-    test_sequence = [frame1, frame2, frame3]
-    
-    avg_v = compute_average_velocity(test_sequence)
-    print(f"Sequence Length: {len(test_sequence)} frames")
-    print(f"Average Velocity: {avg_v:.4f} units/sec")
-    
-    # Expected: (1.0 + 2.0) / 2 = 1.5
-    print("\nTest finished.")
-
 def map_intensity_to_effects(intensity: float, spell_type: str) -> dict:
     """
     Maps a raw intensity float to spell-specific parameters (power, particle count,
@@ -152,4 +118,39 @@ def map_intensity_to_effects(intensity: float, spell_type: str) -> dict:
         "animation_speed": round(anim_speed, 2),
         "explosion_radius": round(radius, 2)
     }
+
+if __name__ == "__main__":
+    print("=== Intensity Analysis Test ===\n")
+
+    # Mock data: A simple movement along the X-axis
+    # Frame 1: at t=0.0, wrist at (0, 0, 0)
+    frame1 = {
+        "timestamp": 0.0,
+        "hand": "right",
+        "landmarks": [{"id": 0, "x": 0.0, "y": 0.0, "z": 0.0}]
+    }
+    
+    # Frame 2: at t=0.1, wrist at (0.1, 0, 0) -> Velocity = 0.1 / 0.1 = 1.0
+    frame2 = {
+        "timestamp": 0.1,
+        "hand": "right",
+        "landmarks": [{"id": 0, "x": 0.1, "y": 0.0, "z": 0.0}]
+    }
+
+    # Frame 3: at t=0.2, wrist at (0.3, 0, 0) -> Velocity = 0.2 / 0.1 = 2.0
+    frame3 = {
+        "timestamp": 0.2,
+        "hand": "right",
+        "landmarks": [{"id": 0, "x": 0.3, "y": 0.0, "z": 0.0}]
+    }
+
+    test_sequence = [frame1, frame2, frame3]
+    
+    avg_v = compute_average_velocity(test_sequence)
+    print(f"Sequence Length: {len(test_sequence)} frames")
+    print(f"Average Velocity: {avg_v:.4f} units/sec")
+    
+    # Expected: (1.0 + 2.0) / 2 = 1.5
+    print("\nTest finished.")
+
 

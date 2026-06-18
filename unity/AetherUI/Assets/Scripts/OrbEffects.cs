@@ -28,6 +28,7 @@ public class OrbEffects : MonoBehaviour
     private Vector3 startPosition;
     private Vector3 targetPosition;
     private Quaternion targetRotation;
+    private string currentSpell = "NONE";
 
     void Awake()
     {
@@ -84,8 +85,7 @@ public class OrbEffects : MonoBehaviour
         transform.localScale = Vector3.one * targetScale;
 
         // --- 2. Colors & Glow ---
-        float t = Mathf.Clamp01(currentIntensity / maxIntensityForColor);
-        Color lerpedColor = Color.Lerp(lowIntensityColor, highIntensityColor, t);
+        Color targetColor = GetSpellColor(currentSpell, currentIntensity);
 
         if (orbRenderers != null)
         {
@@ -93,9 +93,9 @@ public class OrbEffects : MonoBehaviour
             {
                 if (rnd == null || rnd == trail) continue;
                 rnd.GetPropertyBlock(propertyBlock);
-                propertyBlock.SetColor("_BaseColor", lerpedColor);
-                propertyBlock.SetColor("_Color", lerpedColor);
-                propertyBlock.SetColor("_EmissionColor", lerpedColor * (1f + currentIntensity)); 
+                propertyBlock.SetColor("_BaseColor", targetColor);
+                propertyBlock.SetColor("_Color", targetColor);
+                propertyBlock.SetColor("_EmissionColor", targetColor * (1f + currentIntensity)); 
                 rnd.SetPropertyBlock(propertyBlock);
             }
         }
@@ -103,22 +103,37 @@ public class OrbEffects : MonoBehaviour
         // --- 3. Trail Renderer ---
         if (trail != null)
         {
-            trail.startColor = lerpedColor;
-            trail.endColor = new Color(lerpedColor.r, lerpedColor.g, lerpedColor.b, 0f);
+            trail.startColor = targetColor;
+            trail.endColor = new Color(targetColor.r, targetColor.g, targetColor.b, 0f);
             trail.startWidth = 0.5f + (currentIntensity * 0.2f);
         }
     }
 
     /// <summary>
-    /// Parses specific gestures mapped from the Backend into 3D movements.
+    /// Overload for backwards compatibility or manual trigger.
     /// </summary>
     public void HandleGesture(string command, float intensity)
     {
+        GestureCommand cmd = new GestureCommand { command = command, intensity = intensity, spell = "NONE" };
+        HandleGesture(cmd);
+    }
+
+    /// <summary>
+    /// Parses specific gestures mapped from the Backend into 3D movements.
+    /// </summary>
+    public void HandleGesture(GestureCommand cmd)
+    {
+        if (cmd == null) return;
+        string command = cmd.command;
+        float intensity = cmd.intensity;
+        currentSpell = cmd.spell;
+        
         // Ensure idle resets all transforms
         if (command == "idle")
         {
             targetPosition = startPosition;
             targetIntensity = 0f;
+            currentSpell = "NONE";
             return;
         }
         
@@ -150,14 +165,63 @@ public class OrbEffects : MonoBehaviour
             case "tracking":
                 // Just scales in place based on raw hand distance
                 break;
+            case "barrier":
+                targetIntensity = intensity * 2.0f;
+                targetPosition = startPosition; // hold center
+                break;
+            case "swipe_up":
+                targetPosition = startPosition + (Vector3.up * intensity * 2f);
+                break;
+            case "swipe_down":
+                targetPosition = startPosition + (Vector3.down * intensity * 2f);
+                break;
         }
         
         // Particle burst on distinct final commands
         if (command != "tracking" && intensity > 1.5f && particles != null)
         {
             var main = particles.main;
-            main.startColor = Color.Lerp(lowIntensityColor, highIntensityColor, intensity / maxIntensityForColor);
+            Color burstColor = GetSpellColor(currentSpell, intensity);
+            main.startColor = burstColor;
             particles.Emit((int)(intensity * 10)); 
+        }
+    }
+
+    /// <summary>
+    /// Gets a color specific to each spell type for premium visual effects.
+    /// </summary>
+    private Color GetSpellColor(string spell, float intensity)
+    {
+        if (string.IsNullOrEmpty(spell) || spell == "NONE")
+        {
+            float t = Mathf.Clamp01(intensity / maxIntensityForColor);
+            return Color.Lerp(lowIntensityColor, highIntensityColor, t);
+        }
+
+        switch (spell.ToUpper())
+        {
+            case "FIREBALL":
+                return new Color(1f, 0.3f, 0f, 1f); // Blazing Orange
+            case "SHIELD":
+            case "BARRIER":
+                return new Color(0.2f, 0.8f, 1f, 1f); // Cyan Shield
+            case "ENERGY_SLASH":
+                return new Color(0.7f, 0f, 1f, 1f); // Purple Slash
+            case "HEAL":
+                return new Color(0.2f, 1f, 0.4f, 1f); // Green Heal
+            case "LIGHTNING":
+                return new Color(1f, 0.9f, 0f, 1f); // Yellow Lightning
+            case "AURA":
+                return new Color(1f, 0.84f, 0f, 1f); // Golden Aura
+            case "DRAGON_SUMMON":
+                return new Color(1f, 0.2f, 0.6f, 1f); // Prismatic Magenta/Pink
+            case "MAGIC_FORMATION":
+                return new Color(0.5f, 0f, 0.5f, 1f); // Deep Purple
+            case "EARTHQUAKE":
+                return new Color(0.6f, 0.4f, 0.2f, 1f); // Earthy Brown
+            default:
+                float tDef = Mathf.Clamp01(intensity / maxIntensityForColor);
+                return Color.Lerp(lowIntensityColor, highIntensityColor, tDef);
         }
     }
 }
