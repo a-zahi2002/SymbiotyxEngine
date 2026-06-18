@@ -16,6 +16,14 @@ public class OrbEffects : MonoBehaviour
     public Color highIntensityColor = new Color(1f, 0.2f, 0.4f, 1f); // Hot Pink/Red
     public float maxIntensityForColor = 3f;
 
+    [Header("Hand Tracking Mapping")]
+    public float trackingSpeed = 12f;
+    public float horizontalRange = 12f;
+    public float verticalRange = 8f;
+    public float depthRange = -6f;
+
+    private SpellEffectsManager spellEffectsManager;
+
     [Header("VFX Components (Auto-created if missing)")]
     private Renderer[] orbRenderers;
     private MaterialPropertyBlock propertyBlock;
@@ -38,6 +46,13 @@ public class OrbEffects : MonoBehaviour
         
         orbRenderers = GetComponentsInChildren<Renderer>();
         propertyBlock = new MaterialPropertyBlock();
+
+        // Setup Spell Effects Manager
+        spellEffectsManager = FindObjectOfType<SpellEffectsManager>();
+        if (spellEffectsManager == null)
+        {
+            spellEffectsManager = gameObject.AddComponent<SpellEffectsManager>();
+        }
 
         // 1) Setup Trail Renderer
         trail = GetComponent<TrailRenderer>();
@@ -76,8 +91,9 @@ public class OrbEffects : MonoBehaviour
         // Crisp smooth lerp for real-time tracking
         currentIntensity = Mathf.Lerp(currentIntensity, targetIntensity, Time.deltaTime * zoomSpeed);
         
-        // Spatial Lerp for dynamic movement
-        transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * zoomSpeed);
+        // Spatial Lerp for dynamic movement (use snappier trackingSpeed when tracking coordinates)
+        float currentSpeed = (currentSpell != "NONE" && currentSpell != "idle") ? zoomSpeed : trackingSpeed;
+        transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * currentSpeed);
         transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * zoomSpeed);
 
         // --- 1. Zoom (Scale) ---
@@ -139,45 +155,73 @@ public class OrbEffects : MonoBehaviour
         
         targetIntensity = intensity;
         
-        // React physically to the specific command type
-        switch (command.ToLower())
+        if (cmd.has_hand)
         {
-            case "swipe_left":
-                targetPosition = startPosition + (Vector3.left * intensity * 2f);
-                break;
-            case "swipe_right":
-                targetPosition = startPosition + (Vector3.right * intensity * 2f);
-                break;
-            case "rotate_cw":
+            // Move orb directly to user's hand coordinates (MediaPipe X/Y/Z)
+            float tx = (cmd.hand_x - 0.5f) * horizontalRange;
+            float ty = (0.5f - cmd.hand_y) * verticalRange;
+            float tz = cmd.hand_z * depthRange;
+            
+            targetPosition = startPosition + new Vector3(tx, ty, tz);
+            
+            // Allow rotation events to affect orientation during tracking
+            if (command.ToLower() == "rotate_cw")
+            {
                 targetRotation *= Quaternion.Euler(0, intensity * 45f, 0);
-                break;
-            case "rotate_ccw":
+            }
+            else if (command.ToLower() == "rotate_ccw")
+            {
                 targetRotation *= Quaternion.Euler(0, -intensity * 45f, 0);
-                break;
-            case "zoom_in":
-                targetIntensity = intensity * 1.5f;
-                targetPosition = startPosition + (Vector3.back * intensity * 1f); // push towards camera
-                break;
-            case "zoom_out":
-                targetIntensity = intensity * 0.5f;
-                targetPosition = startPosition + (Vector3.forward * intensity * 1f); // push away
-                break;
-            case "tracking":
-                // Just scales in place based on raw hand distance
-                break;
-            case "barrier":
-                targetIntensity = intensity * 2.0f;
-                targetPosition = startPosition; // hold center
-                break;
-            case "swipe_up":
-                targetPosition = startPosition + (Vector3.up * intensity * 2f);
-                break;
-            case "swipe_down":
-                targetPosition = startPosition + (Vector3.down * intensity * 2f);
-                break;
+            }
+        }
+        else
+        {
+            // React physically to the specific command type (Rule-based Fallback)
+            switch (command.ToLower())
+            {
+                case "swipe_left":
+                    targetPosition = startPosition + (Vector3.left * intensity * 2f);
+                    break;
+                case "swipe_right":
+                    targetPosition = startPosition + (Vector3.right * intensity * 2f);
+                    break;
+                case "rotate_cw":
+                    targetRotation *= Quaternion.Euler(0, intensity * 45f, 0);
+                    break;
+                case "rotate_ccw":
+                    targetRotation *= Quaternion.Euler(0, -intensity * 45f, 0);
+                    break;
+                case "zoom_in":
+                    targetIntensity = intensity * 1.5f;
+                    targetPosition = startPosition + (Vector3.back * intensity * 1f); // push towards camera
+                    break;
+                case "zoom_out":
+                    targetIntensity = intensity * 0.5f;
+                    targetPosition = startPosition + (Vector3.forward * intensity * 1f); // push away
+                    break;
+                case "tracking":
+                    // Scale in place
+                    break;
+                case "barrier":
+                    targetIntensity = intensity * 2.0f;
+                    targetPosition = startPosition; // hold center
+                    break;
+                case "swipe_up":
+                    targetPosition = startPosition + (Vector3.up * intensity * 2f);
+                    break;
+                case "swipe_down":
+                    targetPosition = startPosition + (Vector3.down * intensity * 2f);
+                    break;
+            }
         }
         
-        // Particle burst on distinct final commands
+        // Trigger procedural cultivation spell effects in Unity via SpellEffectsManager
+        if (spellEffectsManager != null && !string.IsNullOrEmpty(cmd.spell) && cmd.spell != "NONE")
+        {
+            spellEffectsManager.CastSpell(cmd.spell, transform.position, intensity);
+        }
+        
+        // Particle burst on distinct final commands (secondary visual layer)
         if (command != "tracking" && intensity > 1.5f && particles != null)
         {
             var main = particles.main;

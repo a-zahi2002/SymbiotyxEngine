@@ -222,6 +222,11 @@ def inference_worker_sync(loop):
     is_drawing = False
     active_drawing_hand = None
     
+    latest_hand_x = 0.5
+    latest_hand_y = 0.5
+    latest_hand_z = 0.0
+    latest_has_hand = False
+    
     # Event Bus subscription to broadcast spell casts to Unity
     def on_spell_cast(payload):
         unity_payload = {
@@ -233,7 +238,11 @@ def inference_worker_sync(loop):
             "spell": payload.get("spell", "NONE"),
             "state": payload.get("state", "CASTING"),
             "velocity": payload.get("velocity", 0.0),
-            "confidence": payload.get("confidence", 0.95)
+            "confidence": payload.get("confidence", 0.95),
+            "hand_x": latest_hand_x,
+            "hand_y": latest_hand_y,
+            "hand_z": latest_hand_z,
+            "has_hand": latest_has_hand
         }
         asyncio.run_coroutine_threadsafe(
             manager.broadcast(unity_payload),
@@ -285,6 +294,12 @@ def inference_worker_sync(loop):
                 
                 primary_hand = hand_data_list[0]
                 h_label = primary_hand["hand"]
+                
+                # Update latest hand coordinates for live tracking
+                latest_hand_x = round(primary_hand["wrist_absolute"]["x"], 4)
+                latest_hand_y = round(primary_hand["wrist_absolute"]["y"], 4)
+                latest_hand_z = round(primary_hand["wrist_absolute"]["z"], 4)
+                latest_has_hand = True
                 
                 # 2. Analyze static mudras
                 gesture_res = static_engine.analyze(primary_hand["landmarks"])
@@ -375,7 +390,11 @@ def inference_worker_sync(loop):
                         "spell": "NONE",
                         "state": spell_engine.state,
                         "velocity": round(velocity, 4),
-                        "confidence": primary_confidence
+                        "confidence": primary_confidence,
+                        "hand_x": latest_hand_x,
+                        "hand_y": latest_hand_y,
+                        "hand_z": latest_hand_z,
+                        "has_hand": latest_has_hand
                     }
                     asyncio.run_coroutine_threadsafe(
                         manager.broadcast(live_payload),
@@ -387,6 +406,7 @@ def inference_worker_sync(loop):
                 cv2.putText(frame, hud_text, (20, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 cv2.putText(frame, f"Qi Energy: {spell_engine.qi_level:.1f}", (20, frame.shape[0] - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             else:
+                latest_has_hand = False
                 idle_frames += 1
                 if is_drawing:
                     is_drawing = False
@@ -422,7 +442,11 @@ def inference_worker_sync(loop):
                         "spell": "NONE",
                         "state": "IDLE",
                         "velocity": 0.0,
-                        "confidence": 0.0
+                        "confidence": 0.0,
+                        "hand_x": 0.5,
+                        "hand_y": 0.5,
+                        "hand_z": 0.0,
+                        "has_hand": False
                     }
                     asyncio.run_coroutine_threadsafe(
                         manager.broadcast(idle_payload),

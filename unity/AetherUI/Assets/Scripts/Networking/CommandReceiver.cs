@@ -17,6 +17,10 @@ public class GestureCommand
     public string state;
     public float velocity;
     public float confidence;
+    public float hand_x;
+    public float hand_y;
+    public float hand_z;
+    public bool has_hand;
 }
 
 /// <summary>
